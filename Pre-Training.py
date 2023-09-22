@@ -70,7 +70,7 @@ class Splash(tk.Toplevel):
         tk.Toplevel.__init__(self, parent)
 
         splash_canvas = tk.Canvas(self, width=480, height=480, bg="white", bd=0, highlightbackground="black", highlightcolor="black", highlightthickness=0)
-        splash_img = tk.PhotoImage(file = os.getcwd() + '\\Images\\splash.png')
+        splash_img = tk.PhotoImage(file = os.getcwd() + '\\Images\\logo_pre_program.png')
         splash_canvas.create_image(0, 0, anchor='nw', image=splash_img)
         splash_canvas.pack()
 
@@ -97,7 +97,7 @@ class PreflopTrain(tk.Tk):
         self.withdraw()
 
         splash = Splash(self)
-        time.sleep(1)
+        time.sleep(2)
         splash.destroy()
 
         tk.Tk.iconbitmap(self, "icon.ico")
@@ -236,7 +236,6 @@ class StartPage(tk.Frame):
         self.num = 0
         self.my_hand = "AsKs"
 
-    # training functions
     def purefold(self, event):
         self.sgraph.rfreq = 0
         self.sgraph.cfreq = 0
@@ -253,12 +252,9 @@ class StartPage(tk.Frame):
         self.get_options()
 
     def get_options(self):
-        save_inp_raise = int(self.sgraph.rfreq)
-        save_inp_call = int(self.sgraph.cfreq)
-
-        # convert range strings to array data
-        raise_freq = readRange("R", myPos_idx, myPos_p1, myPos_p2)
-        call_freq = readRange("C", myPos_idx, myPos_p1, myPos_p2)
+        # *** compare training answer with currently active ranges ***
+        raise_freq = read_range("R", tree_idx, heropos, vilpos)
+        call_freq = read_range("C", tree_idx, heropos, vilpos)
 
         if self.my_hand[1] == self.my_hand[3]:
             hand_j = 12 - card_to_idx[self.my_hand[2]]
@@ -270,8 +266,7 @@ class StartPage(tk.Frame):
         trueraise = raise_freq[hand_j][hand_i]
         truecall = call_freq[hand_j][hand_i]
 
-        # compare and determine right/wrong
-        if abs(int(trueraise) - int(save_inp_raise)) <= training_tolerance and abs(int(truecall) - int(save_inp_call)) <= training_tolerance:
+        if abs(int(trueraise) - int(self.sgraph.rfreq)) <= training_tolerance and abs(int(truecall) - int(self.sgraph.cfreq)) <= training_tolerance:
             self.statusvar.set("Correct!")
             self.correct += 1
             self.num += 1
@@ -294,9 +289,10 @@ class StartPage(tk.Frame):
                 self.start_train()
 
     def start_train(self, *args):
-        global myPos_idx, fdir, myPos_p1, myPos_p2, range_dir, open_scenario, facingopen_scenario, facing3bet_scenario, facing4bet_scenario
+        # *** deal new hand in preflop trainer ***
+        global tree_idx, fdir, heropos, vilpos, range_dir, open_scenario, facingopen_scenario, facing3bet_scenario, facing4bet_scenario
 
-        # Bring in graphical slider options
+        # *** show training buttons and help text ***
         self.dealhandtext.set("Deal Next Hand")
         self.raiseBtn.grid()
         self.callBtn.grid()
@@ -305,27 +301,29 @@ class StartPage(tk.Frame):
         self.sgraph.grid()
         if show_hotkeys:
             self.hotkeytext.grid()
+        else:
+            self.hotkeytext.grid_remove()
         if show_accuracy:
             self.acctext.grid()
+        else:
+            self.acctext.grid_remove()
 
-        # Randomly determine positions and deal hands within range
+        # *** randomly select player positions ***
         scen_check = [open_scenario, facingopen_scenario, facing3bet_scenario, facing4bet_scenario]
-
         if scen_check == [0,0,0,0]:
             self.statusvar.set('All training scenarios have been deselected, and no hand dealt')
             return
-        [myPos_idx, myPos_p1, myPos_p2, myPos_p3] = deal_pos()
-        while scen_check[myPos_idx] == 0:
-            [myPos_idx, myPos_p1, myPos_p2, myPos_p3] = deal_pos()
-
+        [tree_idx, heropos, vilpos, scen_text] = deal_pos()
+        while scen_check[tree_idx] == 0:
+            [tree_idx, heropos, vilpos, scen_text] = deal_pos()
+        
+        # *** deal hand, check if hand is within range given the scenario or else redeal ***
         self.my_hand = deal_hand()
-
-        # check if hand is within proper range given situation or redeal
-        if myPos_idx == 2 or myPos_idx == 3:
-            if myPos_idx == 2:
-                f = open(fdir + "\\Range Packages\\" + range_dir + "\\" + "Open-" + myPos_p1 + ".txt")
+        if tree_idx == 2 or tree_idx == 3:
+            if tree_idx == 2:
+                f = open(fdir + "\\Range Packages\\" + range_dir + "\\" + "Open-" + heropos + ".txt")
             else:
-                f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + myPos_p1 + "vs" + myPos_p2 + ".txt")
+                f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + ".txt")
 
             contents = f.read()
             if contents:
@@ -335,46 +333,46 @@ class StartPage(tk.Frame):
                     flag = in_range(self.my_hand, contents)
             f.close()
 
-        # update table replayer
+        # *** update table replayer ***
         self.tablereplayer.herocards = self.my_hand
-        self.tablereplayer.heropos = myPos_p1
-        self.tablereplayer.vilpos = myPos_p2
-        self.tablereplayer.situation_index = myPos_idx
+        self.tablereplayer.heropos = heropos
+        self.tablereplayer.vilpos = vilpos
+        self.tablereplayer.situation_index = tree_idx
         self.tablereplayer.update()
 
-        # update text training label
-        if myPos_idx == 0:
-            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + myPos_p1 + ' - Open?')
-        elif myPos_idx == 1:
-            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + myPos_p1 + ' - ' + myPos_p3 + ' from ' + myPos_p2)
-        elif myPos_idx == 2:
-            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + myPos_p1 + ' - ' + myPos_p3 + ' from ' + myPos_p2)
-        elif myPos_idx == 3:
-            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + myPos_p1 + ' - ' + myPos_p3 + ' from ' + myPos_p2)
+        # *** status bar ***
+        if tree_idx == 0:
+            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - Open?')
+        elif tree_idx == 1:
+            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - ' + scen_text + ' from ' + vilpos)
+        elif tree_idx == 2:
+            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - ' + scen_text + ' from ' + vilpos)
+        elif tree_idx == 3:
+            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - ' + scen_text + ' from ' + vilpos)
         if toggle_sound:
             pygame.mixer.Channel(1).play(pygame.mixer.Sound('Audio\\deal.mp3'))
 
     def rangepopup(self, raise_freq, call_freq, hi, hj):
         self.rpopup = tk.Toplevel()
-        tk.Tk.iconbitmap(self.rpopup, "icon.ico")
         ws = self.rpopup.winfo_screenwidth()
         hs = self.rpopup.winfo_screenheight()
         self.rpopup.geometry('%dx%d+%d+%d' % (ws/2, hs/2, ws/4, hs/4))
-        
-        if myPos_idx == 0:
-            self.rpopup.wm_title('Range Viewer: ' + myPos_p1 + ' - Open')
-        elif myPos_idx == 1:
-            self.rpopup.wm_title('Range Viewer: ' + myPos_p1 + ' - Facing Open from ' + myPos_p2)
-        elif myPos_idx == 2:
-            self.rpopup.wm_title('Range Viewer: ' + myPos_p1 + ' - Facing 3Bet from ' + myPos_p2)
-        elif myPos_idx == 3:
-            self.rpopup.wm_title('Range Viewer: ' + myPos_p1 + ' - Facing 4Bet from ' + myPos_p2)
+        tk.Tk.iconbitmap(self.rpopup, "icon.ico")
+
+        if tree_idx == 0:
+            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Open')
+        elif tree_idx == 1:
+            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Facing Open from ' + vilpos)
+        elif tree_idx == 2:
+            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Facing 3Bet from ' + vilpos)
+        elif tree_idx == 3:
+            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Facing 4Bet from ' + vilpos)
 
         self.rpopup.configure(bg=theme.bgcolor)
 
         raiselabel = tk.Label(self.rpopup, text='Raise Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor, bd=0, fg=theme.fcolor)
         calllabel = tk.Label(self.rpopup, text='Call Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor, bd=0, fg=theme.fcolor)
-       
+
         raiseExp = RaiseViewer(self.rpopup, theme)
         callExp = CallViewer(self.rpopup, theme)
         raiseExp.weights = raise_freq
@@ -391,14 +389,12 @@ class StartPage(tk.Frame):
         raiseExp.grid(row=1, column=0, sticky='NSEW', padx=5, pady=5)
         callExp.grid(row=1, column=1, sticky='NSEW', padx=5, pady=5)
         okBtn.grid(row=2, column=1, sticky='NE', padx=3, pady=5)
-        
         raiseExp.update()
-        callExp.update()      
-        
+        callExp.update()
+
         self.rpopup.rowconfigure(1 ,weight=10, uniform='x')
         self.rpopup.rowconfigure([0,2], weight=1, uniform='x')
         self.rpopup.columnconfigure([0,1], weight=1, uniform='x')
-
         self.rpopup.mainloop()
 
     def popupexit(self, popup):
@@ -413,8 +409,8 @@ class StartPage(tk.Frame):
 class RangeEdit(tk.Frame):
 
     def __init__(self, parent, controller):
-        global range_dir, rclick_weight, g_myScen
-        g_myScen =  1337
+        global range_dir, rclick_weight, tree_scenario
+        tree_scenario =  1337
 
         tk.Frame.__init__(self, parent)
         self.configure(bg=theme.bgcolor)
@@ -429,12 +425,11 @@ class RangeEdit(tk.Frame):
 
         switchframe.grid(row=0, column=0, sticky='NW', columnspan=2)
 
-        # paned window
+        # *** paned window ***
         panedwindow = tk.PanedWindow(self, bd=4, bg=theme.bgcolor, showhandle=False, relief="flat")
-        panedwindow.grid(row=1,column=0,sticky='NSEW', pady=5, padx=5)
+        panedwindow.grid(row=1, column=0, sticky='NSEW', pady=5, padx=5)
 
         self.fileEXP = tk.Frame(panedwindow, bd=0, bg=theme.bgcolor, highlightbackground="black", highlightcolor="black", highlightthickness=0)
-
         self.fileTree = ttk.Treeview(self.fileEXP, selectmode='browse')
         self.vsb = tk.Scrollbar(self.fileEXP, orient="vertical", command=self.fileTree.yview)
 
@@ -444,225 +439,43 @@ class RangeEdit(tk.Frame):
         self.fileTree.heading("#0", text="Positions", anchor=tk.W)
         self.fileTree.heading("one", text="Date Modified", anchor=tk.W)
 
-        self.fileTree.insert("",0, "dir1",text="Open",values=(""))
-        self.fileTree.insert("",1, "dir2",text="Facing Open",values=(""))
-        self.fileTree.insert("",2, "dir3",text="Facing 3Bet",values=(""))
-        self.fileTree.insert("","end", "dir4",text="Facing 4Bet",values=(""))
+        self.fileTree.insert("", 0, "dir1", text="Open", values=(""))
+        self.fileTree.insert("", 1, "dir2", text="Facing Open", values=(""))
+        self.fileTree.insert("", 2, "dir3", text="Facing 3Bet", values=(""))
+        self.fileTree.insert("", "end", "dir4", text="Facing 4Bet", values=(""))
 
         if not range_dir:
             create_rp_name('default')
         if not os.path.isdir('Range Packages\\' + range_dir):
             create_rp_name(range_dir)
-
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Open-EP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call-EP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir1", "end", 'A', text="EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("0","EP","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Open-MP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call-MP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir1", "end", 'B', text="MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("0","MP","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Open-CO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call-CO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir1", "end", 'C', text="CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("0","CO","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Open-BN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call-BN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir1", "end", 'D', text="BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("0","BN","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Open-SB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call-SB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir1", "end", 'E', text="SB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("0","SB","BB"))
-
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-MPvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-MPvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'A1', text="MP vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","MP","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-COvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-COvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'B1', text="CO vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","CO","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-COvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-COvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'C1', text="CO vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","CO","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BNvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BNvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'D1', text="BN vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BN","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BNvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BNvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'E1', text="BN vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BN","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BNvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BNvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'F1', text="BN vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BN","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-SBvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-SBvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'G1', text="SB vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","SB","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-SBvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-SBvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'H1', text="SB vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","SB","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-SBvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-SBvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'I1', text="SB vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","SB","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-SBvsBN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-SBvsBN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'J1', text="SB vs BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","SB","BN"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BBvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BBvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'K1', text="BB vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BB","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BBvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BBvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'L1', text="BB vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BB","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BBvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BBvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'M1', text="BB vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BB","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BBvsBN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BBvsBN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'N1', text="BB vs BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BB","BN"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\3Bet-BBvsSB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Flat-BBvsSB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir2", "end", 'O1', text="BB vs SB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1","BB","SB"))
-
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-EPvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-EPvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'A2', text="EP vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","EP","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-EPvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-EPvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'B2', text="EP vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","EP","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-EPvsBN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-EPvsBN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'C2', text="EP vs BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","EP","BN"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-EPvsSB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-EPvsSB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'D2', text="EP vs SB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","EP","SB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-EPvsBB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-EPvsBB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'E2', text="EP vs BB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","EP","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-MPvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-MPvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'F2', text="MP vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","MP","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-MPvsBN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-MPvsBN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'G2', text="MP vs BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","MP","BN"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-MPvsSB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-MPvsSB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'H2', text="MP vs SB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","MP","SB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-MPvsBB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-MPvsBB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'I2', text="MP vs BB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","MP","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-COvsBN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-COvsBN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'J2', text="CO vs BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","CO","BN"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-COvsSB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-COvsSB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'K2', text="CO vs SB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","CO","SB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-COvsBB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-COvsBB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'L2', text="CO vs BB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","CO","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-BNvsSB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-BNvsSB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'M2', text="BN vs SB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","BN","SB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-BNvsBB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-BNvsBB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'N2', text="BN vs BB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","BN","BB"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\4Bet-SBvsBB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call3bet-SBvsBB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir3", "end", 'O2', text="SB vs BB",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2","SB","BB"))
-
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-MPvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-MPvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'A3', text="MP vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","MP","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-COvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-COvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'B3', text="CO vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","CO","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-COvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-COvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'C3', text="CO vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","CO","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BNvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BNvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'D3', text="BN vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","BN","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BNvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BNvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'E3', text="BN vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","BN","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BNvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BNvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'F3', text="BN vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","BN","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-SBvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-SBvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'G3', text="SB vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","SB","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-SBvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-SBvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'H3', text="SB vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","SB","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-SBvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-SBvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'I3', text="SB vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","SB","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-SBvsBN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-SBvsBN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'J3', text="SB vs BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","SB","BN"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BBvsEP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BBvsEP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'K3', text="BB vs EP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","BB","EP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BBvsMP.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BBvsMP.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'L3', text="BB vs MP",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","BB","MP"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BBvsCO.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BBvsCO.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'M3', text="BB vs CO",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","BB","CO"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BBvsBN.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BBvsBN.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'N3', text="BB vs BN",values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3","BB","BN"))
-        date1 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\5Bet-BBvsSB.txt'))
-        date2 = dt.datetime.fromtimestamp(os.path.getmtime('Range Packages\\' + range_dir + '\\Call4bet-BBvsSB.txt'))
-        date = max(date1,date2)
-        self.fileTree.insert("dir4", "end", 'O3', text="BB vs SB", values=(f"{date:%Y-%m-%d %H:%M}"), tags = ("3","BB","SB"))
-
-        self.fileTree.bind("<Double-1>", self.OnDoubleClick)
-
+            
+        for open_position in ['EP', 'MP', 'CO', 'BN', 'SB']:
+            date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Open-{open_position}.txt'))
+            date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Call-{open_position}.txt'))
+            date = max(date1, date2)
+            self.fileTree.insert("dir1", "end", open_position, text=open_position, values=(f"{date:%Y-%m-%d %H:%M}"), tags = ("0",open_position,"BB"))
+        
+        for facingopen_position in ['MPvsEP','COvsEP','COvsMP','BNvsEP','BNvsMP','BNvsCO','SBvsEP','SBvsMP','SBvsCO','SBvsBN','BBvsEP','BBvsMP','BBvsCO','BBvsBN','BBvsSB']:
+            date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\3Bet-{facingopen_position}.txt'))
+            date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Flat-{facingopen_position}.txt'))
+            date = max(date1,date2)
+            self.fileTree.insert("dir2", "end", facingopen_position, text=facingopen_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1",facingopen_position[0:2],facingopen_position[4:6]))
+        
+        for facing3bet_position in ['EPvsMP','EPvsCO','EPvsBN','EPvsSB','EPvsBB','MPvsCO','MPvsBN','MPvsSB','MPvsBB','COvsBN','COvsSB','COvsBB','BNvsSB','BNvsBB','SBvsBB']:
+            date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\4Bet-{facing3bet_position}.txt'))
+            date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Call3bet-{facing3bet_position}.txt'))
+            date = max(date1,date2)
+            self.fileTree.insert("dir3", "end", f'3b{facing3bet_position}', text=facing3bet_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2",facing3bet_position[0:2],facing3bet_position[4:6]))
+        
+        for facing4bet_position in ['MPvsEP','COvsEP','COvsMP','BNvsEP','BNvsMP','BNvsCO','SBvsEP','SBvsMP','SBvsCO','SBvsBN','BBvsEP','BBvsMP','BBvsCO','BBvsBN','BBvsSB']:
+            date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\5Bet-{facing4bet_position}.txt'))
+            date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Call4bet-{facing4bet_position}.txt'))
+            date = max(date1,date2)
+            self.fileTree.insert("dir4", "end", f'4b{facing4bet_position}', text=facing4bet_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3",facing4bet_position[0:2],facing4bet_position[4:6]))
+                    
+        self.fileTree.bind("<Double-1>", self.on_doubleclick)
         self.vsb.pack(side="right", fill="y")
         self.fileTree.pack(side="left", fill="both", expand=True)
-
         self.fileTree.configure(yscrollcommand=self.vsb.set)
         panedwindow.add(self.fileEXP)
 
@@ -680,8 +493,8 @@ class RangeEdit(tk.Frame):
 
         raiselabel = tk.Label(rangeExplorer, text='Raise Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor, bd=0, fg=theme.fcolor)
         raiselabel.grid(row=0, column=0, sticky='W', padx=5, pady=5)
-        calllabel = tk.Label(rangeExplorer,text='Call Range',font=theme.dirfont, bg=theme.bgcolor,activebackground=theme.btncolor,bd=0, fg=theme.fcolor)
-        calllabel.grid(row=0,column=1,sticky='W',padx=5,pady=5)
+        calllabel = tk.Label(rangeExplorer,text='Call Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor,bd=0, fg=theme.fcolor)
+        calllabel.grid(row=0, column=1, sticky='W', padx=5, pady=5)
 
         rclearBtn = cButton(rangeExplorer, 'Clear Range', self.raiseExp.clear, theme)
         rinvertBtn = cButton(rangeExplorer, 'Inverse Range', lambda: self.raiseExp.invert_weights(self.callExp.weights), theme)
@@ -692,30 +505,30 @@ class RangeEdit(tk.Frame):
         rclearBtn.grid(row=0, column=0, sticky='W', padx=3, pady=5)
         rinvertBtn.grid(row=0, column=0, padx=3, pady=5)
         rselectBtn.grid(row=0, column=0, sticky='E', padx=3, pady=5)
-        cclearBtn.grid(row=0,column=1, sticky='W', padx=3, pady=5)
+        cclearBtn.grid(row=0, column=1, sticky='W', padx=3, pady=5)
         cinvertBtn.grid(row=0, column=1, padx=5, pady=3)
-        cselectBtn.grid(row=0,column=1,sticky='E', padx=3, pady=5)
+        cselectBtn.grid(row=0, column=1, sticky='E', padx=3, pady=5)
 
-        rloadBtn = cButton(rangeExplorer, 'Load Range', lambda: self.loadRange('R'), theme)
-        rsaveBtn = cButton(rangeExplorer, 'Save Range', lambda: self.saveRange('R'), theme)
+        rloadBtn = cButton(rangeExplorer, 'Load Range', lambda: self.load_range('R'), theme)
+        rsaveBtn = cButton(rangeExplorer, 'Save Range', lambda: self.save_range('R'), theme)
         rloadBtn.grid(row=2, column=0, sticky='W', padx=3, pady=5)
         rsaveBtn.grid(row=2, column=0, sticky='E', padx=3, pady=5)
 
-        cloadBtn = cButton(rangeExplorer, 'Load Range', lambda: self.loadRange('C'), theme)
-        csaveBtn = cButton(rangeExplorer, 'Save Range', lambda: self.saveRange('C'), theme)
+        cloadBtn = cButton(rangeExplorer, 'Load Range', lambda: self.load_range('C'), theme)
+        csaveBtn = cButton(rangeExplorer, 'Save Range', lambda: self.save_range('C'), theme)
         cloadBtn.grid(row=2, column=1, sticky='W', padx=3, pady=5)
         csaveBtn.grid(row=2, column=1, sticky='E', padx=3, pady=5)
 
-        rangeExplorer.columnconfigure([0,1],weight=1,uniform='x')
-        rangeExplorer.rowconfigure(1,weight=10,uniform='x')
-        rangeExplorer.rowconfigure(0,weight=1,uniform='x')
-        rangeExplorer.rowconfigure(2,weight=1,uniform='x')
+        rangeExplorer.columnconfigure([0,1], weight=1, uniform='x')
+        rangeExplorer.rowconfigure(1, weight=10, uniform='x')
+        rangeExplorer.rowconfigure(0, weight=1, uniform='x')
+        rangeExplorer.rowconfigure(2, weight=1, uniform='x')
         panedwindow.add(rangeExplorer)
 
-        # *** Status Bar ***
+        # *** status Bar ***
         self.statusvar = tk.StringVar(self, 'Status Idle')
         self.status = tk.Label(self, textvariable=self.statusvar, bd=1, relief='sunken', anchor='w')
-        self.status.grid(row=3,column=0,sticky='SEW')
+        self.status.grid(row=3, column=0, sticky='SEW')
 
         # *** grid configure ***
         self.rowconfigure(0, weight=1)
@@ -723,32 +536,32 @@ class RangeEdit(tk.Frame):
         self.rowconfigure(2, weight=1)
         self.columnconfigure(0, weight=1)
 
-    def saveRange(self,param):
-        global g_myScen
-        if g_myScen == 1337:
+    def save_range(self, param):
+        global tree_scenario
+        if tree_scenario == 1337:
             return
         if param == 'C':
-            writeRange("C", g_myScen, g_myPos1, g_myPos2, self.callExp.weights)
+            write_range("C", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, self.callExp.weights)
         else:
-            writeRange("R", g_myScen, g_myPos1, g_myPos2, self.raiseExp.weights)
+            write_range("R", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, self.raiseExp.weights)
 
-        if g_myScen == 0:
-            flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(g_myScen)] + g_myPos1 + ".txt"
+        if tree_scenario == 0:
+            flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(tree_scenario)] + tree_scenario_heropos + ".txt"
         else:
-            flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(g_myScen)] + g_myPos1 + "vs" + g_myPos2 + ".txt"
+            flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(tree_scenario)] + tree_scenario_heropos + "vs" + tree_scenario_vilpos + ".txt"
         date = dt.datetime.fromtimestamp(os.path.getmtime(flocation))
         format_date = f"{date:%Y-%m-%d %H:%M}"
-        self.fileTree.item(item,values=(str(format_date)))
+        self.fileTree.item(item, values=(str(format_date)))
         self.statusvar.set('Range Saved Successfully')
         return
 
-    def loadRange(self,param):
-        global g_myScen
-        if g_myScen == 1337:
+    def load_range(self, param):
+        global tree_scenario
+        if tree_scenario == 1337:
             return
         filename = filedialog.askopenfilename(title = "Select Range in PIO .txt format",filetypes = (("txt files","*.txt"),("all files","*.*")))
         if not filename: return
-        rangeselect = readRangefile(filename)
+        rangeselect = read_rangefile(filename)
         if param == 'C':
             self.callExp.weights = rangeselect
             self.callExp.update()
@@ -758,19 +571,19 @@ class RangeEdit(tk.Frame):
         self.statusvar.set('Range Loaded Successfully')
         return
 
-    def OnDoubleClick(self,event):
-        global g_myScen, g_myPos1, g_myPos2, treeIdx, item, rclick_weight
+    def on_doubleclick(self, event):
+        global tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, treeIdx, item, rclick_weight
         self.callExp.lock = False
         self.raiseExp.lock = False
         self.callExp.increment = rclick_weight
         self.raiseExp.increment = rclick_weight
         item = self.fileTree.identify('item', event.x, event.y)
-        treeText = self.fileTree.item(item, "tags")
-        if len(treeText) > 0:
-            g_myScen = int(treeText[0])
-            g_myPos1, g_myPos2 = treeText[1], treeText[2]
-            self.raiseExp.weights = readRange("R", g_myScen, g_myPos1, g_myPos2)
-            self.callExp.weights = readRange("C", g_myScen, g_myPos1, g_myPos2)
+        treetags = self.fileTree.item(item, 'tags')
+        if len(treetags) > 0:
+            tree_scenario = int(treetags[0])
+            tree_scenario_heropos, tree_scenario_vilpos = treetags[1], treetags[2]
+            self.raiseExp.weights = read_range("R", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos)
+            self.callExp.weights = read_range("C", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos)
             self.raiseExp.update()
             self.callExp.update()
 
@@ -930,7 +743,7 @@ def train_settings():
     tolEntry.insert(0, training_tolerance)
     tolEntry.grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
-    Showgroup = tk.LabelFrame(popup, text='Toggle (Requires Program Restart)', padx=5, pady=5, bg=theme.bgcolor, fg=theme.fcolor)
+    Showgroup = tk.LabelFrame(popup, text='Toggle', padx=5, pady=5, bg=theme.bgcolor, fg=theme.fcolor)
     Showgroup.grid(row=2, column=0, padx=5, pady=5, sticky='nsew')
 
     hotvar = tk.IntVar(master = popup)
@@ -1315,12 +1128,10 @@ def docs_report():
 
     def onDoubleClick_docs(event):
         item = fileTree.identify('item', event.x, event.y)
-        treeText = fileTree.item(item, "tags")
-        if treeText[0] == '0':
+        treetags = fileTree.item(item, "tags")
+        if treetags[0] == '0':
             txt.pack_forget()
             txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        print(treeText[0])
         return
 
     # paned window
@@ -1388,12 +1199,12 @@ def docs_report():
     popup.geometry('%dx%d+%d+%d' % (ws/2, hs/2, ws/4, hs/4))
     popup.mainloop()
 
-def readRangefile(filename):
+def read_rangefile(filename):
     range_array = [[0 for x in range(13)] for x in range(13)]
+    
     f = open(filename)
     split_contents = f.read().split(",")
     f.close()
-
     if not split_contents:
         return
 
@@ -1419,10 +1230,9 @@ def readRangefile(filename):
                     range_array[12-c2][12-c1] = int(float(freq[4:])*100)
                 elif freq[2] == "o":
                     range_array[12-c1][12-c2] = int(float(freq[4:])*100)
-
     return range_array
 
-def readRange(CR, myScen, myPos1, myPos2):
+def read_range(CR, myScen, myPos1, myPos2):
     global range_dir
     range_array = [[0 for x in range(13)] for x in range(13)]
 
@@ -1462,7 +1272,7 @@ def readRange(CR, myScen, myPos1, myPos2):
 
     return range_array
 
-def writeRange(CR, myScen, myPos1, myPos2, range_array):
+def write_range(CR, myScen, myPos1, myPos2, range_array):
     global range_dir
     if myScen == 0:
         f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + ".txt", "w+")
