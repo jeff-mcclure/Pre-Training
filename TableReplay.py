@@ -19,7 +19,7 @@ class TableReplay(tk.Canvas):
     labelpos_x = (162,447,629,634,343,161)
     labelpos_y = (143,75,143,304,397,304)
         
-    def __init__(self, parent, heropos, vilpos, situation_index, herocards, theme, **kwargs):
+    def __init__(self, parent, heropos, vilpos, situation_index, herocards, bet_size, theme, **kwargs):
 
         tk.Canvas.__init__(self, parent, width=765, height=440, bg=theme.bgcolor, highlightbackground=theme.bgcolor, highlightcolor=theme.bgcolor, highlightthickness=0, bd=0)
 
@@ -28,6 +28,7 @@ class TableReplay(tk.Canvas):
         self.vilpos = vilpos
         self.situation_index = situation_index
         self.herocards = herocards
+        self.bet_size = bet_size
         
         # define images
         img_dir = f'{os.getcwd()}\\Images'
@@ -38,9 +39,18 @@ class TableReplay(tk.Canvas):
         self.bn_marker = tk.PhotoImage(file = f'{img_dir}\\bn_marker.png')
         self.chips_sb = tk.PhotoImage(file = f'{img_dir}\\chips_sb.png')
         self.chips_bb = tk.PhotoImage(file = f'{img_dir}\\chips_bb.png')
+        self.chips_2p25bb = tk.PhotoImage(file = f'{img_dir}\\chips_2p25bb.png')
         self.chips_2p5bb = tk.PhotoImage(file = f'{img_dir}\\chips_2p5bb.png')
+        self.chips_3bb = tk.PhotoImage(file = f'{img_dir}\\chips_3bb.png')
+        self.chips_7p5bb = tk.PhotoImage(file = f'{img_dir}\\chips_7p5bb.png')
         self.chips_8bb = tk.PhotoImage(file = f'{img_dir}\\chips_8bb.png')
-        self.chips_22bb = tk.PhotoImage(file = f'{img_dir}\\chips_22bb.png')
+        self.chips_9bb = tk.PhotoImage(file = f'{img_dir}\\chips_9bb.png')
+        self.chips_11bb = tk.PhotoImage(file = f'{img_dir}\\chips_11bb.png')
+        self.chips_12p5bb = tk.PhotoImage(file = f'{img_dir}\\chips_12p5bb.png')
+        self.chips_13p5bb = tk.PhotoImage(file = f'{img_dir}\\chips_13p5bb.png')
+        self.chips_20bb = tk.PhotoImage(file = f'{img_dir}\\chips_20bb.png')
+        self.chips_23bb = tk.PhotoImage(file = f'{img_dir}\\chips_23bb.png')
+        self.chips_26p5bb = tk.PhotoImage(file = f'{img_dir}\\chips_26p5bb.png')
         self.suit_h = tk.PhotoImage(file = f'{img_dir}\\suit_h.png')
         self.suit_d = tk.PhotoImage(file = f'{img_dir}\\suit_d.png')
         self.suit_c = tk.PhotoImage(file = f'{img_dir}\\suit_c.png')
@@ -69,12 +79,17 @@ class TableReplay(tk.Canvas):
         self.itemconfigure(self.sb_img, state='hidden')
         self.itemconfigure(self.bb_img, state='hidden')
         self.itemconfigure(self.btn_img, state='hidden')
-        
+
         # place bet amounts depending on preflop situation
         vilpos_idx = TableReplay.pos_str.index(self.vilpos)
         if self.situation_index == 1:
             strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
-            self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p5bb)
+            if self.vilpos in ['MP', 'EP']:
+                self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p25bb)
+            elif self.vilpos == 'SB':
+                self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_3bb)
+            else:
+                self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p5bb)
         elif self.situation_index == 2:
             strdraw_idx = 4
             self.herochips_img =self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p5bb)
@@ -84,7 +99,7 @@ class TableReplay(tk.Canvas):
             strdraw_idx = 4
             self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_8bb)
             strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
-            self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_22bb) 
+            self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_20bb) 
         
         self.itemconfigure(self.vilchips_img, state='hidden')
         self.itemconfigure(self.herochips_img, state='hidden')
@@ -126,15 +141,50 @@ class TableReplay(tk.Canvas):
         
         elif self.situation_index == 1:
             strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
-            self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p5bb)
+            if self.vilpos in ['MP', 'EP']:
+                if self.bet_size == '2.25bb':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p25bb)
+                elif self.bet_size == '3bb':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_3bb)
+            elif self.vilpos == 'SB':
+                if self.bet_size == '3bb':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_3bb)
+                elif self.bet_size == '3.5bb':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_3p5bb)
+            else:
+                if self.bet_size == '2.5bb':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p5bb)
+                elif self.bet_size == '3bb':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_3bb)
             if vilpos_idx == 1:
                 self.delete(self.sb_img)
                 
         elif self.situation_index == 2:
             strdraw_idx = 4
-            self.herochips_img =self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p5bb)
-            strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
-            self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_8bb)
+            
+            if self.heropos in ['MP', 'EP', 'CO']:
+                self.herochips_img =self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p25bb)
+                strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
+                if self.vilpos == 'MP':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_7p5bb)
+                elif self.vilpos in ['BN', 'CO']:
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_8bb)
+                elif self.vilpos == 'SB':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_11bb)
+                else:
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_12p5bb)
+            elif self.heropos == 'SB':
+                self.herochips_img =self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_3bb)
+                strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
+                self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_9bb)
+            else:
+                self.herochips_img =self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_2p5bb)
+                strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
+                if self.vilpos == 'SB':
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_11bb)
+                else:
+                    self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_13p5bb)
+
             if heropos_idx == 1:
                 self.delete(self.sb_img)
             if vilpos_idx == 1:
@@ -144,9 +194,29 @@ class TableReplay(tk.Canvas):
             
         else:
             strdraw_idx = 4
-            self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_8bb)
+            if self.heropos == 'SB':
+                self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_11bb)
+            elif self.heropos == 'MP':
+                self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_7p5bb)
+            elif self.heropos == 'BB':
+                if self.vilpos == 'SB':
+                    self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_9bb)
+                elif self.vilpos == 'BN':
+                    self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_13p5bb)
+                else:
+                    self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_12p5bb)
+            else:
+                self.herochips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_8bb)
+
             strdraw_idx = (vilpos_idx + 4 - heropos_idx) % 6
-            self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_22bb)
+
+            if self.heropos == 'SB':
+                self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_23bb)
+            elif self.heropos == 'BB':
+                self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_26p5bb)
+            else:
+                self.vilchips_img = self.create_image(TableReplay.chippos_x[strdraw_idx], TableReplay.chippos_y[strdraw_idx], anchor = 'nw', image=self.chips_20bb)
+
             if heropos_idx == 1:
                 self.delete(self.sb_img)
             if heropos_idx == 2:

@@ -7,6 +7,7 @@ import os
 import time
 import shutil
 import datetime as dt
+import random
 from tkinter import filedialog
 from tkinter import ttk
 from configparser import ConfigParser
@@ -97,7 +98,7 @@ class PreflopTrain(tk.Tk):
         self.withdraw()
 
         splash = Splash(self)
-        time.sleep(2)
+        time.sleep(1)
         splash.destroy()
 
         tk.Tk.iconbitmap(self, "icon.ico")
@@ -187,7 +188,7 @@ class StartPage(tk.Frame):
 
         # *** table canvas ***
         plotframe = tk.Frame(self, bd=0, bg=theme.bgcolor, highlightbackground=theme.fcolor, highlightcolor=theme.fcolor, highlightthickness=0)
-        self.tablereplayer = TableReplay(plotframe, 'CO', 'EP', 3, 'AdAs', theme)
+        self.tablereplayer = TableReplay(plotframe, 'CO', 'EP', 3, 'AdAs', '2.25bb', theme)
         self.tablereplayer.pack()
         plotframe.rowconfigure(0, weight=2)
         plotframe.grid(row=2, column=0, padx=5, pady=5)
@@ -205,11 +206,8 @@ class StartPage(tk.Frame):
         self.raiseBtn.grid(row=1, column=0, padx=3, pady=2)
         self.callBtn.grid(row=1, column=1, padx=3, pady=2)
         self.foldBtn.grid(row=1, column=2, padx=3, pady=2)
-        self.sgraph.grid_remove()
-        self.okayBtn.grid_remove()
-        self.raiseBtn.grid_remove()
-        self.callBtn.grid_remove()
-        self.foldBtn.grid_remove()
+
+        [button.grid_remove() for button in [self.sgraph, self.okayBtn, self.raiseBtn, self.callBtn, self.foldBtn]]
 
         trainingInterface.grid(row=3, column=0, sticky='N')
 
@@ -252,9 +250,10 @@ class StartPage(tk.Frame):
         self.get_options()
 
     def get_options(self):
+        global bet_size
         # *** compare training answer with currently active ranges ***
-        raise_freq = read_range("R", tree_idx, heropos, vilpos)
-        call_freq = read_range("C", tree_idx, heropos, vilpos)
+        raise_freq = read_range("R", tree_idx, heropos, vilpos, bet_size)
+        call_freq = read_range("C", tree_idx, heropos, vilpos, bet_size)
 
         if self.my_hand[1] == self.my_hand[3]:
             hand_j = 12 - card_to_idx[self.my_hand[2]]
@@ -290,42 +289,109 @@ class StartPage(tk.Frame):
 
     def start_train(self, *args):
         # *** deal new hand in preflop trainer ***
-        global tree_idx, fdir, heropos, vilpos, range_dir, open_scenario, facingopen_scenario, facing3bet_scenario, facing4bet_scenario
+        global tree_idx, bet_size, fdir, heropos, vilpos, range_dir, open_scenario, facingopen_scenario, facing3bet_scenario, facing4bet_scenario
 
         # *** show training buttons and help text ***
         self.dealhandtext.set("Deal Next Hand")
-        self.raiseBtn.grid()
-        self.callBtn.grid()
-        self.foldBtn.grid()
-        self.okayBtn.grid()
-        self.sgraph.grid()
-        if show_hotkeys:
-            self.hotkeytext.grid()
-        else:
-            self.hotkeytext.grid_remove()
-        if show_accuracy:
-            self.acctext.grid()
-        else:
-            self.acctext.grid_remove()
+        [button.grid() for button in [self.raiseBtn, self.callBtn, self.foldBtn, self.okayBtn, self.sgraph]]
+        self.hotkeytext.grid() if show_hotkeys else self.hotkeytext.grid_remove()
+        self.acctext.grid() if show_accuracy else self.acctext.grid_remove()       
 
         # *** randomly select player positions ***
         scen_check = [open_scenario, facingopen_scenario, facing3bet_scenario, facing4bet_scenario]
         if scen_check == [0,0,0,0]:
             self.statusvar.set('All training scenarios have been deselected, and no hand dealt')
             return
-        [tree_idx, heropos, vilpos, scen_text] = deal_pos()
-        while scen_check[tree_idx] == 0:
+        while True:
             [tree_idx, heropos, vilpos, scen_text] = deal_pos()
+            if scen_check[tree_idx]: break
         
         # *** deal hand, check if hand is within range given the scenario or else redeal ***
-        self.my_hand = deal_hand()
-        if tree_idx == 2 or tree_idx == 3:
+        bet_size = ''
+        if tree_idx < 2:
+            # *** don't deal me trash ***
+            while True:
+                self.my_hand = deal_hand()
+                card1_idx = card_to_idx[self.my_hand[0]]
+                card2_idx = card_to_idx[self.my_hand[2]]
+                if self.my_hand[1] == self.my_hand[3]:
+                    break
+                if self.my_hand[0] == self.my_hand[2]:
+                    break
+                if card1_idx < 12 and card2_idx < 12:
+                    if card1_idx + card2_idx > 14:
+                        break
+                else:
+                    break
+            if tree_idx == 0:
+                if heropos in ['EP', 'MP']:
+                    bet_size = '2.25bb'
+                elif heropos in ['CO', 'BN']:
+                    bet_size = '2.5bb'
+                else:
+                    bet_size = '3bb'
+            elif tree_idx == 1:
+                rand_switch = random.randint(0,1)
+                if vilpos in ['EP', 'MP']:
+                    if rand_switch == 1:
+                        bet_size = '2.25bb'
+                    else:
+                        bet_size = '3bb'
+                elif vilpos in ['CO', 'BN']:
+                    if rand_switch == 1:
+                        bet_size = '2.5bb'
+                    else:
+                        bet_size = '3bb'
+                else:
+                    if rand_switch == 1:
+                        bet_size = '3bb'
+                    else:
+                        bet_size = '3.5bb'
+        else:
             if tree_idx == 2:
-                f = open(fdir + "\\Range Packages\\" + range_dir + "\\" + "Open-" + heropos + ".txt")
+                if heropos in ['EP', 'MP']:
+                    f = open(fdir + "\\Range Packages\\" + range_dir + "\\" + "Open-" + heropos + " 2.25bb" + ".txt")
+                    bet_size = '2.25bb'
+                elif heropos == 'SB':
+                    f = open(fdir + "\\Range Packages\\" + range_dir + "\\" + "Open-" + heropos + " 3bb" + ".txt")
+                    bet_size = '3bb'
+                else:
+                    f = open(fdir + "\\Range Packages\\" + range_dir + "\\" + "Open-" + heropos + " 2.5bb" + ".txt")
+                    bet_size = '2.5bb'
             else:
-                f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + ".txt")
+                rand_switch = random.randint(0,1)
+                if heropos == 'BB':
+                    if vilpos in ['EP', 'MP']:
+                        if rand_switch == 1:
+                            f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + " 2.25bb" + ".txt")
+                            bet_size = '2.25bb'
+                        else:
+                            f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + " 3bb" + ".txt")
+                            bet_size = '3bb'
+                    elif vilpos == 'SB':
+                        if rand_switch == 1:
+                            f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + " 3bb" + ".txt")
+                            bet_size = '3bb'
+                        else:
+                            f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + " 3.5bb" + ".txt")
+                            bet_size = '3.5bb'
+                    else:
+                        if rand_switch == 1:
+                            f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + " 2.5bb" + ".txt")
+                            bet_size = '2.5bb'
+                        else:
+                            f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + " 3bb" + ".txt")
+                            bet_size = '3bb'
+                else:
+                    if vilpos in ['EP', 'MP']:
+                        f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos + " 2.25bb" + ".txt")
+                        bet_size = '2.25bb'
+                    else:
+                        f = open(fdir + "\\Range Packages\\" + range_dir + "\\3Bet-" + heropos + "vs" + vilpos +  " 2.5bb" + ".txt")
+                        bet_size = '2.5bb'
 
             contents = f.read()
+            self.my_hand = deal_hand()
             if contents:
                 flag = in_range(self.my_hand, contents)
                 while not flag:
@@ -338,64 +404,47 @@ class StartPage(tk.Frame):
         self.tablereplayer.heropos = heropos
         self.tablereplayer.vilpos = vilpos
         self.tablereplayer.situation_index = tree_idx
+        self.tablereplayer.bet_size = bet_size
         self.tablereplayer.update()
 
         # *** status bar ***
         if tree_idx == 0:
             self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - Open?')
-        elif tree_idx == 1:
-            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - ' + scen_text + ' from ' + vilpos)
-        elif tree_idx == 2:
-            self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - ' + scen_text + ' from ' + vilpos)
-        elif tree_idx == 3:
+        else:
             self.statusvar.set('Dealt ' + self.my_hand + ' in ' + heropos + ' - ' + scen_text + ' from ' + vilpos)
         if toggle_sound:
             pygame.mixer.Channel(1).play(pygame.mixer.Sound('Audio\\deal.mp3'))
 
     def rangepopup(self, raise_freq, call_freq, hi, hj):
-        self.rpopup = tk.Toplevel()
-        ws = self.rpopup.winfo_screenwidth()
-        hs = self.rpopup.winfo_screenheight()
-        self.rpopup.geometry('%dx%d+%d+%d' % (ws/2, hs/2, ws/4, hs/4))
-        tk.Tk.iconbitmap(self.rpopup, "icon.ico")
+        rpopup = tk.Toplevel()
+        rpopup.configure(bg=theme.bgcolor)
+        ws, hs = [rpopup.winfo_screenwidth(), rpopup.winfo_screenheight()]
+        rpopup.geometry('%dx%d+%d+%d' % (19*ws/32, 21*hs/32, 3*ws/16, 3*hs/16))
+        tk.Tk.iconbitmap(rpopup, "icon.ico")
 
+        title_dict = {0: ' - Open', 1: ' - Facing Open from ', 2: ' - Facing 3Bet from ', 3: ' - Facing 4Bet from '}
         if tree_idx == 0:
-            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Open')
-        elif tree_idx == 1:
-            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Facing Open from ' + vilpos)
-        elif tree_idx == 2:
-            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Facing 3Bet from ' + vilpos)
-        elif tree_idx == 3:
-            self.rpopup.wm_title('Range Viewer: ' + heropos + ' - Facing 4Bet from ' + vilpos)
+            rpopup.wm_title('Range Viewer: ' + heropos + title_dict[0])
+        else:
+            rpopup.wm_title('Range Viewer: ' + heropos + title_dict[tree_idx] + vilpos)
 
-        self.rpopup.configure(bg=theme.bgcolor)
+        raiselabel = tk.Label(rpopup, text='Raise Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor, bd=0, fg=theme.fcolor)
+        calllabel = tk.Label(rpopup, text='Call Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor, bd=0, fg=theme.fcolor)
 
-        raiselabel = tk.Label(self.rpopup, text='Raise Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor, bd=0, fg=theme.fcolor)
-        calllabel = tk.Label(self.rpopup, text='Call Range', font=theme.dirfont, bg=theme.bgcolor, activebackground=theme.btncolor, bd=0, fg=theme.fcolor)
+        viewframe = tk.Frame(rpopup, bg=theme.bgcolor)
+        raiseExp = RaiseViewer(viewframe, theme); callExp = CallViewer(viewframe, theme)
+        raiseExp.weights, callExp.weights = [raise_freq, call_freq]
+        raiseExp.lock, callExp.lock = [True, True]
 
-        raiseExp = RaiseViewer(self.rpopup, theme)
-        callExp = CallViewer(self.rpopup, theme)
-        raiseExp.weights = raise_freq
-        callExp.weights = call_freq
-        raiseExp.range_canvas.itemconfig(raiseExp.rectgrid[hj][hi], width=3)
-        callExp.range_canvas.itemconfig(callExp.rectgrid[hj][hi], width=3)
-        raiseExp.lock = True
-        callExp.lock = True
+        okBtn = cButton(rpopup, "    OK    ", lambda: self.popupexit(rpopup), theme)
 
-        okBtn = cButton(self.rpopup, "    OK    ", lambda: self.popupexit(self.rpopup), theme)
-
-        raiselabel.grid(row=0, column=0, sticky='W', padx=5, pady=5)
-        calllabel.grid(row=0, column=1, sticky='W', padx=5, pady=5)
-        raiseExp.grid(row=1, column=0, sticky='NSEW', padx=5, pady=5)
-        callExp.grid(row=1, column=1, sticky='NSEW', padx=5, pady=5)
+        raiselabel.grid(row=0, column=0, sticky='W', padx=5, pady=5); calllabel.grid(row=0, column=1, sticky='W', padx=5, pady=5)
+        raiseExp.grid(row=0, column=0, sticky='NSEW', padx=5, pady=5); callExp.grid(row=0, column=1, sticky='NSEW', padx=5, pady=5)
+        viewframe.grid(row=1, columnspan=2, sticky='NSEW', padx=5, pady=5)
         okBtn.grid(row=2, column=1, sticky='NE', padx=3, pady=5)
-        raiseExp.update()
-        callExp.update()
 
-        self.rpopup.rowconfigure(1 ,weight=10, uniform='x')
-        self.rpopup.rowconfigure([0,2], weight=1, uniform='x')
-        self.rpopup.columnconfigure([0,1], weight=1, uniform='x')
-        self.rpopup.mainloop()
+        raiseExp.update(); callExp.update()
+        rpopup.mainloop()
 
     def popupexit(self, popup):
         popup.destroy()
@@ -403,7 +452,7 @@ class StartPage(tk.Frame):
 
 
 # -------------------
-# range editor window
+# Range editor window
 # -------------------
 
 class RangeEdit(tk.Frame):
@@ -449,29 +498,29 @@ class RangeEdit(tk.Frame):
         if not os.path.isdir('Range Packages\\' + range_dir):
             create_rp_name(range_dir)
             
-        for open_position in ['EP', 'MP', 'CO', 'BN', 'SB']:
+        for open_position in ['EP 2.25bb', 'MP 2.25bb', 'CO 2.5bb', 'BN 2.5bb', 'SB 3bb']:
             date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Open-{open_position}.txt'))
             date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Call-{open_position}.txt'))
             date = max(date1, date2)
-            self.fileTree.insert("dir1", "end", open_position, text=open_position, values=(f"{date:%Y-%m-%d %H:%M}"), tags = ("0",open_position,"BB"))
+            self.fileTree.insert("dir1", "end", open_position, text=open_position, values=(f"{date:%Y-%m-%d %H:%M}"), tags = ("0",open_position[0:2],"BB",open_position[3:]))
         
-        for facingopen_position in ['MPvsEP','COvsEP','COvsMP','BNvsEP','BNvsMP','BNvsCO','SBvsEP','SBvsMP','SBvsCO','SBvsBN','BBvsEP','BBvsMP','BBvsCO','BBvsBN','BBvsSB']:
+        for facingopen_position in ['MPvsEP 2.25bb','COvsEP 2.25bb','COvsMP 2.25bb','BNvsEP 2.25bb','BNvsMP 2.25bb','BNvsCO 2.5bb','SBvsEP 2.25bb','SBvsMP 2.25bb','SBvsCO 2.5bb','SBvsBN 2.5bb','BBvsEP 2.25bb','BBvsMP 2.25bb','BBvsCO 2.5bb','BBvsBN 2.5bb','BBvsSB 3bb','BBvsEP 3bb','BBvsMP 3bb','BBvsCO 3bb','BBvsBN 3bb','BBvsSB 3.5bb']:
             date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\3Bet-{facingopen_position}.txt'))
             date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Flat-{facingopen_position}.txt'))
             date = max(date1,date2)
-            self.fileTree.insert("dir2", "end", facingopen_position, text=facingopen_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1",facingopen_position[0:2],facingopen_position[4:6]))
+            self.fileTree.insert("dir2", "end", facingopen_position, text=facingopen_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("1",facingopen_position[0:2],facingopen_position[4:6],facingopen_position[7:]))
         
         for facing3bet_position in ['EPvsMP','EPvsCO','EPvsBN','EPvsSB','EPvsBB','MPvsCO','MPvsBN','MPvsSB','MPvsBB','COvsBN','COvsSB','COvsBB','BNvsSB','BNvsBB','SBvsBB']:
             date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\4Bet-{facing3bet_position}.txt'))
             date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Call3bet-{facing3bet_position}.txt'))
             date = max(date1,date2)
-            self.fileTree.insert("dir3", "end", f'3b{facing3bet_position}', text=facing3bet_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2",facing3bet_position[0:2],facing3bet_position[4:6]))
+            self.fileTree.insert("dir3", "end", f'3b{facing3bet_position}', text=facing3bet_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("2",facing3bet_position[0:2],facing3bet_position[4:6],'0bb'))
         
         for facing4bet_position in ['MPvsEP','COvsEP','COvsMP','BNvsEP','BNvsMP','BNvsCO','SBvsEP','SBvsMP','SBvsCO','SBvsBN','BBvsEP','BBvsMP','BBvsCO','BBvsBN','BBvsSB']:
             date1 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\5Bet-{facing4bet_position}.txt'))
             date2 = dt.datetime.fromtimestamp(os.path.getmtime(f'Range Packages\\{range_dir}\\Call4bet-{facing4bet_position}.txt'))
             date = max(date1,date2)
-            self.fileTree.insert("dir4", "end", f'4b{facing4bet_position}', text=facing4bet_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3",facing4bet_position[0:2],facing4bet_position[4:6]))
+            self.fileTree.insert("dir4", "end", f'4b{facing4bet_position}', text=facing4bet_position,values=(f"{date:%Y-%m-%d %H:%M}"),tags = ("3",facing4bet_position[0:2],facing4bet_position[4:6],'0bb'))
                     
         self.fileTree.bind("<Double-1>", self.on_doubleclick)
         self.vsb.pack(side="right", fill="y")
@@ -541,12 +590,14 @@ class RangeEdit(tk.Frame):
         if tree_scenario == 1337:
             return
         if param == 'C':
-            write_range("C", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, self.callExp.weights)
+            write_range("C", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, tree_scenario_size, self.callExp.weights)
         else:
-            write_range("R", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, self.raiseExp.weights)
+            write_range("R", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, tree_scenario_size, self.raiseExp.weights)
 
         if tree_scenario == 0:
-            flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(tree_scenario)] + tree_scenario_heropos + ".txt"
+            flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(tree_scenario)] + tree_scenario_heropos + ' ' + tree_scenario_size + ".txt"
+        elif tree_scenario == 1:
+            flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(tree_scenario)] + tree_scenario_heropos + "vs" + tree_scenario_vilpos + ' ' + tree_scenario_size + ".txt"
         else:
             flocation = fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[param + str(tree_scenario)] + tree_scenario_heropos + "vs" + tree_scenario_vilpos + ".txt"
         date = dt.datetime.fromtimestamp(os.path.getmtime(flocation))
@@ -572,7 +623,7 @@ class RangeEdit(tk.Frame):
         return
 
     def on_doubleclick(self, event):
-        global tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, treeIdx, item, rclick_weight
+        global tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, tree_scenario_size, item, rclick_weight
         self.callExp.lock = False
         self.raiseExp.lock = False
         self.callExp.increment = rclick_weight
@@ -581,9 +632,9 @@ class RangeEdit(tk.Frame):
         treetags = self.fileTree.item(item, 'tags')
         if len(treetags) > 0:
             tree_scenario = int(treetags[0])
-            tree_scenario_heropos, tree_scenario_vilpos = treetags[1], treetags[2]
-            self.raiseExp.weights = read_range("R", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos)
-            self.callExp.weights = read_range("C", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos)
+            tree_scenario_heropos, tree_scenario_vilpos, tree_scenario_size = treetags[1], treetags[2], treetags[3]
+            self.raiseExp.weights = read_range("R", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, tree_scenario_size)
+            self.callExp.weights = read_range("C", tree_scenario, tree_scenario_heropos, tree_scenario_vilpos, tree_scenario_size)
             self.raiseExp.update()
             self.callExp.update()
 
@@ -754,14 +805,8 @@ def train_settings():
     hotkeyBtn.pack(anchor='w')
     accuracyBtn.pack(anchor='w')
 
-    if show_hotkeys:
-        hotkeyBtn.select()
-    else:
-        hotkeyBtn.deselect()
-    if show_accuracy:
-        accuracyBtn.select()
-    else:
-        accuracyBtn.deselect()
+    hotkeyBtn.select() if show_hotkeys else hotkeyBtn.deselect()
+    accuracyBtn.select() if show_accuracy else accuracyBtn.deselect()
 
     Audiogroup = tk.LabelFrame(popup, text='Audio', padx=5, pady=5, bg=theme.bgcolor, fg=theme.fcolor)
     Audiogroup.grid(row=3, column=0, padx=5, pady=5, sticky='nsew')
@@ -1232,12 +1277,20 @@ def read_rangefile(filename):
                     range_array[12-c1][12-c2] = int(float(freq[4:])*100)
     return range_array
 
-def read_range(CR, myScen, myPos1, myPos2):
+def read_range(CR, myScen, myPos1, myPos2, mySize):
     global range_dir
     range_array = [[0 for x in range(13)] for x in range(13)]
 
     if myScen == 0:
-        f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + ".txt")
+        f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + ' ' + mySize + ".txt")
+    elif myScen == 1:
+        if myPos1 == 'BB':
+            f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + "vs" + myPos2 + ' ' + mySize + ".txt")
+        else:   
+            if myPos2 in ['EP', 'MP']:
+                f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + "vs" + myPos2 + ' ' + '2.25bb' + ".txt")
+            elif myPos2 in ['CO', 'BN']:
+                f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + "vs" + myPos2 + ' ' + '2.5bb' + ".txt")
     else:
         f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + "vs" + myPos2 + ".txt")
     split_contents = f.read().split(",")
@@ -1272,10 +1325,12 @@ def read_range(CR, myScen, myPos1, myPos2):
 
     return range_array
 
-def write_range(CR, myScen, myPos1, myPos2, range_array):
+def write_range(CR, myScen, myPos1, myPos2, mySize, range_array):
     global range_dir
     if myScen == 0:
-        f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + ".txt", "w+")
+        f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + ' ' + mySize + ".txt", "w+")
+    elif myScen == 1:
+        f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + "vs" + myPos2 + ' ' + mySize + ".txt", "w+")
     else:
         f = open(fdir + '\\Range Packages\\' + range_dir + "\\" + range_to_label[CR + str(myScen)] + myPos1 + "vs" + myPos2 + ".txt", "w+")
 
